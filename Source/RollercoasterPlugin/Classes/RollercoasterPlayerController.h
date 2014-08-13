@@ -69,7 +69,7 @@ public:
 	* Updates the rotation of player, based on ControlRotation after RotationInput has been applied.
 	* This may then be modified by the PlayerCamera, and is passed to Pawn->FaceRotation().
 	*/
-	virtual void UpdateRotation(float DeltaTime) OVERRIDE;
+	virtual void UpdateRotation(float DeltaTime) override;
 
-	virtual void GetPlayerViewPoint(FVector& Location, FRotator& Rotation) const OVERRIDE;
+	virtual void GetPlayerViewPoint(FVector& Location, FRotator& Rotation) const override;
 };

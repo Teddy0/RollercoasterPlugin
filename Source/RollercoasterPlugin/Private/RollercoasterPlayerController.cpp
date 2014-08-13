@@ -46,7 +46,7 @@ FInterpCurveVector& HackAccessSplineInfo(ULandscapeSplineSegment* SplineSegment)
 	//This ugly code will crash badly if the ULandscapeSplineSegment changes
 	BYTE* HackPtr = (BYTE*)SplineSegment;
 #if WITH_EDITORONLY_DATA
-	HackPtr += STRUCT_OFFSET(ULandscapeSplineSegment, LDMaxDrawDistance) + 3 * sizeof(uint32);
+	HackPtr += STRUCT_OFFSET(ULandscapeSplineSegment, LDMaxDrawDistance) + sizeof(uint32) * 3;
 #else
 	HackPtr += STRUCT_OFFSET(ULandscapeSplineSegment, Connections[1]) + sizeof(FLandscapeSplineSegmentConnection);
 #endif
@@ -62,7 +62,7 @@ ARollercoasterPlayerController::ARollercoasterPlayerController(const class FPost
 	CurrentSegmentLength = 0;
 	CurrentRollerCoasterVelocity = 30.f;
 	RollerCoasterVelocity = 30.f;
-	CameraHeight = 5.f;
+	CameraHeight = 0.75f;
 	ConfigCameraPitch = false;
 	BlueprintCameraPitch = false;
 	ConfigCameraRoll = false;
@@ -252,5 +252,5 @@ void ARollercoasterPlayerController::UpdateRotation(float DeltaTime)
 void ARollercoasterPlayerController::GetPlayerViewPoint(FVector& Location, FRotator& Rotation) const
 {
 	Super::GetPlayerViewPoint(Location, Rotation);
-	Location += CameraOffset;
+	Location = GetPawn()->GetActorLocation() + CameraOffset;
 }

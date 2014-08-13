@@ -1,0 +1,19 @@
+{
+    "FileVersion" : 3,
+	
+	"FriendlyName" : "Rollercoaster Plugin",
+	"Version" : 1,
+	"VersionName" : "1.0",
+	"CreatedBy" : "Teddy",
+	"CreatedByURL" : "https://developer.oculusvr.com/forums/viewtopic.php?t=8032",
+	"Description" : "A rollercoaster player controller that follows a Landscape spline mesh",
+	"Category" : "Virtual Reality",
+	
+    "Modules" :
+	[
+		{
+			"Name" : "RollercoasterPlugin",
+			"Type" : "Runtime"
+		}
+	]
+}
