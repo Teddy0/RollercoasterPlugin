@@ -40,7 +40,22 @@ class ARollercoasterPlayerController : public APlayerController
 	float CurrentRollerCoasterVelocity;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerController)
-	float RollerCoasterVelocity;
+	float AddVelocity;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerController)
+	float ClimbingSpeed;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerController)
+	float GravityAcceleration;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerController)
+	float FrictionCoefficient;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerController)
+	bool Stopped;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerController)
+	bool Climbing;
 
 	UPROPERTY(config)
 	bool ConfigCameraPitch;

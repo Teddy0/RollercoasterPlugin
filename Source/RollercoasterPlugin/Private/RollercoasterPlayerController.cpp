@@ -60,8 +60,13 @@ ARollercoasterPlayerController::ARollercoasterPlayerController(const class FPost
 	CurentSegmentIdx = 0;
 	CurrentSegmentDelta = 0;
 	CurrentSegmentLength = 0;
-	CurrentRollerCoasterVelocity = 30.f;
-	RollerCoasterVelocity = 30.f;
+	CurrentRollerCoasterVelocity = 0.f;
+	AddVelocity = 0.f;
+	ClimbingSpeed = 10.f;
+	FrictionCoefficient = 0.0125f;
+	GravityAcceleration = 9.8f;
+	Stopped = true;
+	Climbing = false;
 	CameraHeight = 0.75f;
 	ConfigCameraPitch = false;
 	BlueprintCameraPitch = false;
@@ -168,8 +173,15 @@ void ARollercoasterPlayerController::UnPossess()
 void ARollercoasterPlayerController::PlayerTick(float DeltaTime)
 {
 	//If we're requesting a stop, do it immediately
-	if (RollerCoasterVelocity == 0.f)
+	if (Stopped)
+	{
 		CurrentRollerCoasterVelocity = 0.f;
+	}
+	else
+	{
+		CurrentRollerCoasterVelocity += AddVelocity;
+		AddVelocity = 0.f;
+	}
 
 	if (GetPawn() && TrackSplines)
 	{
@@ -230,9 +242,22 @@ void ARollercoasterPlayerController::PlayerTick(float DeltaTime)
 		CameraOffset = FRotationMatrix(NewRotation).GetScaledAxis(EAxis::Z) * CameraHeight * WorldToMeters;
 
 		//Adjust the velocity of the coaster. Increase acceleration/deceleration when on a slope
-		const float Acceleration = FMath::Lerp(20.f * WorldToMeters, 49.f * WorldToMeters, FMath::Abs(NewKeyTangent.Z));
-		const float VelocityDiff = RollerCoasterVelocity - CurrentRollerCoasterVelocity;
-		CurrentRollerCoasterVelocity += FMath::Min(Acceleration, FMath::Abs(VelocityDiff)) * DeltaTime * (VelocityDiff > 0 ? 1.f : -1.f);
+		if (!Stopped)
+		{
+			if (Climbing)
+			{
+				//Takes 4 seconds to accelerate to climbing speed from rest
+				CurrentRollerCoasterVelocity = FMath::Min(ClimbingSpeed, CurrentRollerCoasterVelocity + DeltaTime * (ClimbingSpeed * 0.25f));
+			}
+			else
+			{
+				//Add acceleration/deceleration based on the angle of the track
+				float Acceleration = FMath::Lerp(0.f, GravityAcceleration, -NewKeyTangent.Z);
+				//Add friction on flat level track, less when on an incline
+				float Friction = FrictionCoefficient * CurrentRollerCoasterVelocity * (1.f - FMath::Abs(NewKeyTangent.Z));
+				CurrentRollerCoasterVelocity += (Acceleration - Friction) * WorldToMeters * DeltaTime;
+			}
+		}
 	}
 
 	PlayerCameraManager->bFollowHmdOrientation = true;
