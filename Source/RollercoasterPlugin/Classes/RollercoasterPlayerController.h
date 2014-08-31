@@ -31,6 +31,9 @@ class ARollercoasterPlayerController : public APlayerController
 	float CurrentSegmentLength;
 
 	UPROPERTY()
+	float DeltaRemaining;
+
+	UPROPERTY()
 	FVector CameraOffset;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = PlayerController)
@@ -75,6 +78,9 @@ public:
 	* PlayerTick is only called if the PlayerController has a PlayerInput object. Therefore, it will only be called for locally controlled PlayerControllers.
 	*/
 	virtual void PlayerTick(float DeltaTime);
+
+	// This function updates the player's position and camera position. This may be called from the PlayerTick multiple times per frame
+	void UpdatePlayer(float StepTime);
 
 	//Init functions
 	virtual void Possess(APawn* PawnToPossess);

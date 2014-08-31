@@ -62,6 +62,7 @@ ARollercoasterPlayerController::ARollercoasterPlayerController(const class FPost
 	CurrentSegmentLength = 0;
 	CurrentRollerCoasterVelocity = 0.f;
 	AddVelocity = 0.f;
+	DeltaRemaining = 0.f;
 	ClimbingSpeed = 10.f;
 	FrictionCoefficient = 0.0125f;
 	GravityAcceleration = 9.8f;
@@ -185,84 +186,97 @@ void ARollercoasterPlayerController::PlayerTick(float DeltaTime)
 
 	if (GetPawn() && TrackSplines)
 	{
-		//Cache the world to meters, so we can scale our world up/down
-		float WorldToMeters = GetWorldSettings() ? GetWorldSettings()->WorldToMeters : 1.f;
+		DeltaRemaining += DeltaTime;
 
-		CurrentSegmentDelta += CurrentRollerCoasterVelocity*DeltaTime;
-
-		//If we're going to pass the next point this frame
-		if (CurrentSegmentDelta > CurrentSegmentLength)
+		static float FixedStepTime = 1.f / 150.f;
+		while (DeltaRemaining >= FixedStepTime)
 		{
-			CurentSegmentIdx = CurentSegmentIdx + 1 >= OrderedSegments.Num() ? 0 : CurentSegmentIdx + 1;
-			CurrentSegmentDelta = 0.f;
-
-			//Calculate the length of this point
-			const FInterpCurveVector& SplineInfo = HackAccessSplineInfo(OrderedSegments[CurentSegmentIdx]);
-			CurrentSegmentLength = ApproxLength(SplineInfo);
-		}
-
-		ULandscapeSplineSegment* CurrentSegment = OrderedSegments[CurentSegmentIdx];
-		const FInterpCurveVector& SplineInfo = HackAccessSplineInfo(CurrentSegment);
-
-		//Do some moving along the track!
-		const float NewKeyTime = GetKeyForDistance(SplineInfo, CurrentSegmentDelta);
-		const FVector NewKeyPos = TrackSplines->GetOwner()->GetActorLocation() + SplineInfo.Eval(NewKeyTime, FVector::ZeroVector);
-		const FVector NewKeyTangent = SplineInfo.EvalDerivative(NewKeyTime, FVector::ZeroVector).SafeNormal();
-		FRotator NewRotation = NewKeyTangent.Rotation();
-
-		// Calculate the roll values
-		float NewRotationRoll = 0.f;
-		if (CurrentSegment->Connections[0].ControlPoint && CurrentSegment->Connections[1].ControlPoint)
-		{
-			FVector StartLocation; FRotator StartRotation;
-			CurrentSegment->Connections[0].ControlPoint->GetConnectionLocationAndRotation(CurrentSegment->Connections[0].SocketName, StartLocation, StartRotation);
-			FVector EndLocation; FRotator EndRotation;
-			CurrentSegment->Connections[1].ControlPoint->GetConnectionLocationAndRotation(CurrentSegment->Connections[1].SocketName, EndLocation, EndRotation);
-			NewRotationRoll = FMath::Lerp(-StartRotation.Roll, -EndRotation.Roll, NewKeyTime);
-		}
-		NewRotation.Roll = NewRotationRoll;
-
-		//Make the controller/camera face the right direction
-		ChairViewRotation = NewRotation;
-		if (GEngine->HMDDevice.IsValid() && GEngine->HMDDevice->IsHeadTrackingAllowed())
-		{
-			//Remove the Pitch and Roll for VR
-			if (!ConfigCameraPitch && !BlueprintCameraRoll)
-				ChairViewRotation.Pitch = 0;
-			if (!ConfigCameraRoll && !BlueprintCameraRoll)
-				ChairViewRotation.Roll = 0;
-		}
-		SetControlRotation(ChairViewRotation);
-
-		//Make the pawn/chair move along the track
-		GetPawn()->SetActorLocation(NewKeyPos);
-		GetPawn()->SetActorRotation(NewRotation);
-
-		//Offset the camera so it's above the seat
-		CameraOffset = FRotationMatrix(NewRotation).GetScaledAxis(EAxis::Z) * CameraHeight * WorldToMeters;
-
-		//Adjust the velocity of the coaster. Increase acceleration/deceleration when on a slope
-		if (!Stopped)
-		{
-			if (Climbing)
-			{
-				//Takes 4 seconds to accelerate to climbing speed from rest
-				CurrentRollerCoasterVelocity = FMath::Min(ClimbingSpeed, CurrentRollerCoasterVelocity + DeltaTime * (ClimbingSpeed * 0.25f));
-			}
-			else
-			{
-				//Add acceleration/deceleration based on the angle of the track
-				float Acceleration = FMath::Lerp(0.f, GravityAcceleration, -NewKeyTangent.Z);
-				//Add friction on flat level track, less when on an incline
-				float Friction = FrictionCoefficient * CurrentRollerCoasterVelocity * (1.f - FMath::Abs(NewKeyTangent.Z));
-				CurrentRollerCoasterVelocity += (Acceleration - Friction) * WorldToMeters * DeltaTime;
-			}
+			UpdatePlayer(FixedStepTime);
+			DeltaRemaining -= FixedStepTime;
 		}
 	}
 
 	PlayerCameraManager->bFollowHmdOrientation = true;
 
 	Super::PlayerTick(DeltaTime);
+}
+
+// This function updates the player's position and camera position. This may be called from the PlayerTick multiple times per frame
+void ARollercoasterPlayerController::UpdatePlayer(float StepTime)
+{
+	//Cache the world to meters, so we can scale our world up/down
+	float WorldToMeters = GetWorldSettings() ? GetWorldSettings()->WorldToMeters : 1.f;
+
+	CurrentSegmentDelta += CurrentRollerCoasterVelocity*StepTime;
+
+	//If we're going to pass the next point this frame
+	if (CurrentSegmentDelta > CurrentSegmentLength)
+	{
+		CurentSegmentIdx = CurentSegmentIdx + 1 >= OrderedSegments.Num() ? 0 : CurentSegmentIdx + 1;
+		CurrentSegmentDelta = 0.f;
+
+		//Calculate the length of this point
+		const FInterpCurveVector& SplineInfo = HackAccessSplineInfo(OrderedSegments[CurentSegmentIdx]);
+		CurrentSegmentLength = ApproxLength(SplineInfo);
+	}
+
+	ULandscapeSplineSegment* CurrentSegment = OrderedSegments[CurentSegmentIdx];
+	const FInterpCurveVector& SplineInfo = HackAccessSplineInfo(CurrentSegment);
+
+	//Do some moving along the track!
+	const float NewKeyTime = GetKeyForDistance(SplineInfo, CurrentSegmentDelta);
+	const FVector NewKeyPos = TrackSplines->GetOwner()->GetActorLocation() + SplineInfo.Eval(NewKeyTime, FVector::ZeroVector);
+	const FVector NewKeyTangent = SplineInfo.EvalDerivative(NewKeyTime, FVector::ZeroVector).SafeNormal();
+	FRotator NewRotation = NewKeyTangent.Rotation();
+
+	// Calculate the roll values
+	float NewRotationRoll = 0.f;
+	if (CurrentSegment->Connections[0].ControlPoint && CurrentSegment->Connections[1].ControlPoint)
+	{
+		FVector StartLocation; FRotator StartRotation;
+		CurrentSegment->Connections[0].ControlPoint->GetConnectionLocationAndRotation(CurrentSegment->Connections[0].SocketName, StartLocation, StartRotation);
+		FVector EndLocation; FRotator EndRotation;
+		CurrentSegment->Connections[1].ControlPoint->GetConnectionLocationAndRotation(CurrentSegment->Connections[1].SocketName, EndLocation, EndRotation);
+		NewRotationRoll = FMath::Lerp(-StartRotation.Roll, -EndRotation.Roll, NewKeyTime);
+	}
+	NewRotation.Roll = NewRotationRoll;
+
+	//Make the controller/camera face the right direction
+	ChairViewRotation = NewRotation;
+	if (GEngine->HMDDevice.IsValid() && GEngine->HMDDevice->IsHeadTrackingAllowed())
+	{
+		//Remove the Pitch and Roll for VR
+		if (!ConfigCameraPitch && !BlueprintCameraPitch)
+			ChairViewRotation.Pitch = 0;
+		if (!ConfigCameraRoll && !BlueprintCameraRoll)
+			ChairViewRotation.Roll = 0;
+	}
+	SetControlRotation(ChairViewRotation);
+
+	//Make the pawn/chair move along the track
+	GetPawn()->SetActorLocation(NewKeyPos);
+	GetPawn()->SetActorRotation(NewRotation);
+
+	//Offset the camera so it's above the seat
+	CameraOffset = FRotationMatrix(NewRotation).GetScaledAxis(EAxis::Z) * CameraHeight * WorldToMeters;
+
+	//Adjust the velocity of the coaster. Increase acceleration/deceleration when on a slope
+	if (!Stopped)
+	{
+		if (Climbing)
+		{
+			//Takes 4 seconds to accelerate to climbing speed from rest
+			CurrentRollerCoasterVelocity = FMath::Min(ClimbingSpeed, CurrentRollerCoasterVelocity + StepTime * (ClimbingSpeed * 0.25f));
+		}
+		else
+		{
+			//Add acceleration/deceleration based on the angle of the track
+			float Acceleration = FMath::Lerp(0.f, GravityAcceleration, -NewKeyTangent.Z);
+			//Add friction on flat level track, less when on an incline
+			float Friction = FrictionCoefficient * CurrentRollerCoasterVelocity * (1.f - FMath::Abs(NewKeyTangent.Z));
+			CurrentRollerCoasterVelocity += (Acceleration - Friction) * WorldToMeters * StepTime;
+		}
+	}
 }
 
 /**
@@ -277,5 +291,6 @@ void ARollercoasterPlayerController::UpdateRotation(float DeltaTime)
 void ARollercoasterPlayerController::GetPlayerViewPoint(FVector& Location, FRotator& Rotation) const
 {
 	Super::GetPlayerViewPoint(Location, Rotation);
-	Location = GetPawn()->GetActorLocation() + CameraOffset;
+	if (GetPawn())
+		Location = GetPawn()->GetActorLocation() + CameraOffset;
 }
