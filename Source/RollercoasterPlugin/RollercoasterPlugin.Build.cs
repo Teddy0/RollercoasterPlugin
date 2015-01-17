@@ -8,6 +8,7 @@ namespace UnrealBuildTool.Rules
 		{
 			PublicIncludePaths.AddRange(
 				new string[] {
+                    "Landscape"
 					// ... add public include paths required here ...
 				}
 				);
@@ -21,7 +22,8 @@ namespace UnrealBuildTool.Rules
 					"CoreUObject",
                     "Engine",
                     "InputCore",
-                    "HeadMountedDisplay"
+                    "HeadMountedDisplay",
+                    "LandScape"
 					// ... add other public dependencies that you statically link with here ...
 				}
 				);
